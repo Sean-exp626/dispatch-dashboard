@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Team Coconut — Multi-Agent Pipeline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --dim: #8b949e;
+      --dimmer: #484f58;
+      --blue: #58a6ff;
+      --green: #3fb950;
+      --yellow: #e3b341;
+      --orange: #f0883e;
+      --pink: #ff7b72;
+      --purple: #bc8cff;
+      --red: #f85149;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo { font-size: 16px; font-weight: 700; }
+    .logo span { color: var(--pink); }
+    .subtitle { font-size: 12px; color: var(--dim); }
+
+    .container {
+      max-width: 860px;
+      margin: 32px auto;
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--dim);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    .card-body { padding: 18px; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--dim);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    input, textarea {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus { border-color: var(--blue); }
+    input::placeholder, textarea::placeholder { color: var(--dimmer); }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+
+    .key-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .key-row input { flex: 1; }
+
+    .btn {
+      padding: 10px 22px;
+      border-radius: 7px;
+      border: none;
+      background: var(--pink);
+      color: #0d1117;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .hint {
+      font-size: 11px;
+      color: var(--dimmer);
+      margin-top: 6px;
+    }
+    .hint a { color: var(--blue); text-decoration: none; }
+    .hint a:hover { text-decoration: underline; }
+
+    /* Pipeline flow */
+    .pipeline-flow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 18px;
+      background: var(--bg3);
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--dimmer);
+      overflow-x: auto;
+    }
+
+    .stage-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 500;
+      transition: all 0.3s;
+    }
+    .stage-chip.active { border-color: currentColor; opacity: 1; }
+    .stage-chip.done   { opacity: 0.5; }
+    .stage-chip.idle   { opacity: 0.35; }
+
+    .arrow { color: var(--dimmer); font-size: 12px; flex-shrink: 0; }
+
+    /* Results */
+    #results { display: none; }
+
+    .summary-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 14px 18px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .metric-item { display: flex; flex-direction: column; gap: 2px; }
+    .metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--dimmer); }
+    .metric-val   { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    .stages-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stage-row {
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .stage-row:last-child { border-bottom: none; }
+
+    .stage-row-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 18px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--bg2);
+      transition: background 0.1s;
+    }
+    .stage-row-header:hover { background: var(--bg3); }
+
+    .stage-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .stage-meta {
+      display: flex;
+      gap: 14px;
+      font-size: 11px;
+      color: var(--dim);
+    }
+    .stage-meta span { font-variant-numeric: tabular-nums; }
+
+    .stage-content {
+      display: none;
+      padding: 14px 18px;
+      background: var(--bg3);
+      border-top: 1px solid var(--border);
+    }
+    .stage-content.open { display: block; }
+
+    pre {
+      font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+      font-size: 12px;
+      color: var(--dim);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    /* Final answer */
+    .final-answer {
+      padding: 18px;
+      background: var(--bg3);
+      border-top: 1px solid var(--border);
+    }
+
+    .final-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--pink);
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .solution-text {
+      font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .notes-list {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .note-item {
+      font-size: 12px;
+      color: var(--dim);
+      display: flex;
+      gap: 6px;
+    }
+    .note-item::before { content: '→'; color: var(--dimmer); }
+
+    /* Loading */
+    .loading-wrap {
+      padding: 32px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .spinner-lg {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--pink);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .loading-stages {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--dim);
+    }
+
+    .loading-stage {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      opacity: 0.4;
+      transition: opacity 0.3s, color 0.3s;
+    }
+    .loading-stage.active { opacity: 1; color: var(--orange); }
+    .loading-stage.done   { opacity: 0.7; color: var(--green); }
+
+    .mini-spinner {
+      width: 8px;
+      height: 8px;
+      border: 1.5px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      padding: 14px 18px;
+      color: var(--red);
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.2);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .confidence-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    .conf-high   { background: rgba(63,185,80,0.15); color: var(--green); }
+    .conf-medium { background: rgba(227,179,65,0.15); color: var(--yellow); }
+    .conf-low    { background: rgba(248,81,73,0.15); color: var(--red); }
+
+    @media (max-width: 600px) {
+      .key-row { flex-direction: column; }
+      .summary-bar { gap: 12px; }
+      .loading-stages { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Team <span>Coconut</span></div>
+    <div class="subtitle">Multi-Agent Intelligence Pipeline</div>
+  </div>
+  <div style="font-size:11px;color:var(--dimmer);text-align:right">
+    Haiku → Sonnet → Opus
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Input Card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="dot" style="background:var(--pink)"></div>
+      새 작업 실행
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>작업 내용</label>
+        <textarea id="query" placeholder="무엇을 만들거나 분석할지 자유롭게 입력하세요. 예: JWT 인증을 검증하는 REST API 엔드포인트를 만들어줘"></textarea>
+      </div>
+      <div class="field">
+        <label>Anthropic API Key</label>
+        <div class="key-row">
+          <input type="password" id="apiKey" placeholder="sk-ant-..." />
+          <button class="btn" id="runBtn" onclick="runPipeline()">실행</button>
+        </div>
+        <p class="hint">
+          키는 브라우저에만 저장되며 서버로 전송되지 않습니다.
+          <a href="https://console.anthropic.com/settings/keys" target="_blank">API 키 발급받기 →</a>
+        </p>
+      </div>
+    </div>
+    <div class="pipeline-flow">
+      <div class="stage-chip idle" id="chip1" style="color:var(--yellow)">
+        <span>①</span> Parser · Haiku
+      </div>
+      <span class="arrow">→</span>
+      <div class="stage-chip idle" id="chip2" style="color:var(--orange)">
+        <span>②</span> Architect · Sonnet
+      </div>
+      <span class="arrow">→</span>
+      <div class="stage-chip idle" id="chip3" style="color:var(--pink)">
+        <span>③</span> Execution · Opus
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="error-box" style="display:none"></div>
+
+  <!-- Loading -->
+  <div class="card" id="loading-card" style="display:none">
+    <div class="loading-wrap">
+      <div class="spinner-lg"></div>
+      <div class="loading-stages">
+        <div class="loading-stage" id="ls1"><div class="mini-spinner"></div> Haiku 분석 중…</div>
+        <div class="loading-stage" id="ls2"><div class="mini-spinner"></div> Sonnet 설계 중…</div>
+        <div class="loading-stage" id="ls3"><div class="mini-spinner"></div> Opus 실행 중…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="results">
+    <div class="card-header">
+      <div class="dot" style="background:var(--green)"></div>
+      결과
+      <span id="conf-badge"></span>
+    </div>
+
+    <div class="summary-bar">
+      <div class="metric-item">
+        <span class="metric-label">총 소요시간</span>
+        <span class="metric-val" id="r-latency" style="color:var(--blue)">—</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">토큰 압축률</span>
+        <span class="metric-val" id="r-reduction" style="color:var(--green)">—</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">입력 토큰</span>
+        <span class="metric-val" id="r-in" style="color:var(--dim)">—</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">출력 토큰</span>
+        <span class="metric-val" id="r-out" style="color:var(--dim)">—</span>
+      </div>
+    </div>
+
+    <!-- Final Answer (top) -->
+    <div class="final-answer" id="final-answer-box">
+      <div class="final-label">최종 답변 (Opus)</div>
+      <div class="solution-text" id="r-solution"></div>
+      <div class="notes-list" id="r-notes"></div>
+    </div>
+
+    <!-- Stage details (collapsible) -->
+    <div class="stages-list">
+      <div class="stage-row">
+        <div class="stage-row-header" onclick="toggleStage('s1')">
+          <div class="stage-title" style="color:var(--yellow)">
+            <div class="dot" style="background:var(--yellow)"></div>
+            Stage 1 — Parser (Haiku)
+          </div>
+          <div class="stage-meta">
+            <span id="s1-lat">—</span>
+            <span id="s1-tok">—</span>
+            <span style="color:var(--dimmer)">▾</span>
+          </div>
+        </div>
+        <div class="stage-content" id="s1-content">
+          <pre id="s1-out"></pre>
+        </div>
+      </div>
+
+      <div class="stage-row">
+        <div class="stage-row-header" onclick="toggleStage('s2')">
+          <div class="stage-title" style="color:var(--orange)">
+            <div class="dot" style="background:var(--orange)"></div>
+            Stage 2 — Architect (Sonnet)
+          </div>
+          <div class="stage-meta">
+            <span id="s2-lat">—</span>
+            <span id="s2-tok">—</span>
+            <span style="color:var(--dimmer)">▾</span>
+          </div>
+        </div>
+        <div class="stage-content" id="s2-content">
+          <pre id="s2-out"></pre>
+        </div>
+      </div>
+
+      <div class="stage-row">
+        <div class="stage-row-header" onclick="toggleStage('s3')">
+          <div class="stage-title" style="color:var(--pink)">
+            <div class="dot" style="background:var(--pink)"></div>
+            Stage 3 — Execution (Opus)
+          </div>
+          <div class="stage-meta">
+            <span id="s3-lat">—</span>
+            <span id="s3-tok">—</span>
+            <span style="color:var(--dimmer)">▾</span>
+          </div>
+        </div>
+        <div class="stage-content" id="s3-content">
+          <pre id="s3-out"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Anthropic API helper ──────────────────────────────────────────────────────
+
+async function callClaude(apiKey, model, system, userMessage, maxTokens) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-browser': 'true',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    throw new Error(err.error?.message || `API error ${res.status}`);
+  }
+  return res.json();
+}
+
+function parseJson(text) {
+  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  return JSON.parse(cleaned);
+}
+
+// ── System prompts ────────────────────────────────────────────────────────────
+
+const S1_SYSTEM = `You are a Token-Efficiency Parser. Convert the user's raw query into a compact JSON object that strips all conversational filler.
+
+Output ONLY valid JSON (no markdown fences):
+{
+  "intent": "<one-line action verb phrase>",
+  "domain": "<technical domain>",
+  "constraints": ["<hard requirement>"],
+  "inputs": { "<var>": "<value or ?>" },
+  "outputs": ["<expected deliverable>"],
+  "edge_cases": ["<risk or ambiguity>"],
+  "context_tokens_saved": <integer>
+}`;
+
+const S2_SYSTEM = `You are a Logic Architect. Receive a JSON task spec and design a complete solution plan.
+
+Output ONLY valid JSON (no markdown fences):
+{
+  "architecture": "<1-2 sentence summary>",
+  "execution_steps": [{ "step": 1, "action": "<what>", "why": "<why>" }],
+  "edge_case_mitigations": [{ "risk": "<risk>", "mitigation": "<how>" }],
+  "pseudocode": "<concise pseudocode with \\n line breaks>",
+  "priority_order": ["<first priority>"],
+  "estimated_complexity": "<low|medium|high>"
+}`;
+
+const S3_SYSTEM = `You are a High-Fidelity Execution Agent. Receive a technical roadmap and produce the final solution.
+
+Output ONLY valid JSON (no markdown fences):
+{
+  "solution": "<complete solution — working code and/or explanation>",
+  "notes": ["<important caveat>"],
+  "confidence": "<high|medium|low>",
+  "follow_up_suggestions": ["<next step>"]
+}`;
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+
+function setChip(id, state) {
+  const el = document.getElementById(id);
+  el.className = `stage-chip ${state}`;
+}
+
+function setLoadingStage(n) {
+  ['ls1','ls2','ls3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (i + 1 < n)      el.className = 'loading-stage done';
+    else if (i + 1 === n) el.className = 'loading-stage active';
+    else                  el.className = 'loading-stage';
+  });
+}
+
+function toggleStage(id) {
+  const el = document.getElementById(id + '-content');
+  el.classList.toggle('open');
+}
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Main pipeline ─────────────────────────────────────────────────────────────
+
+async function runPipeline() {
+  const query  = document.getElementById('query').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const btn    = document.getElementById('runBtn');
+
+  if (!query)  { alert('작업 내용을 입력해주세요.'); return; }
+  if (!apiKey) { alert('API 키를 입력해주세요.'); return; }
+
+  // Reset UI
+  btn.disabled = true;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('error-box').style.display = 'none';
+  document.getElementById('loading-card').style.display = 'block';
+  setChip('chip1','idle'); setChip('chip2','idle'); setChip('chip3','idle');
+
+  const pipelineStart = Date.now();
+
+  try {
+    // ── Stage 1 ──
+    setLoadingStage(1);
+    setChip('chip1','active');
+    const s1Start = Date.now();
+    const s1Res = await callClaude(apiKey, 'claude-haiku-4-5-20251001', S1_SYSTEM, query, 512);
+    const s1Ms  = Date.now() - s1Start;
+    const s1Out = parseJson(s1Res.content[0].text);
+    setChip('chip1','done');
+
+    const originalChars = query.length;
+    const s1Chars       = JSON.stringify(s1Out).length;
+    const reduction     = (((originalChars - s1Chars) / originalChars) * 100).toFixed(1);
+
+    // ── Stage 2 ──
+    setLoadingStage(2);
+    setChip('chip2','active');
+    const s2Start = Date.now();
+    const s2Res = await callClaude(
+      apiKey, 'claude-sonnet-4-6', S2_SYSTEM,
+      `Task specification:\n${JSON.stringify(s1Out, null, 2)}`, 1024
+    );
+    const s2Ms  = Date.now() - s2Start;
+    const s2Out = parseJson(s2Res.content[0].text);
+    setChip('chip2','done');
+
+    // ── Stage 3 ──
+    setLoadingStage(3);
+    setChip('chip3','active');
+    const s3Start = Date.now();
+    const s3Res = await callClaude(
+      apiKey, 'claude-opus-4-6', S3_SYSTEM,
+      `Original request: ${query}\n\nTechnical roadmap:\n${JSON.stringify(s2Out, null, 2)}`, 4096
+    );
+    const s3Ms  = Date.now() - s3Start;
+    let s3Out;
+    try { s3Out = parseJson(s3Res.content[0].text); }
+    catch { s3Out = { solution: s3Res.content[0].text, notes: [], confidence: 'high', follow_up_suggestions: [] }; }
+    setChip('chip3','done');
+
+    const totalMs     = Date.now() - pipelineStart;
+    const totalIn     = (s1Res.usage?.input_tokens||0) + (s2Res.usage?.input_tokens||0) + (s3Res.usage?.input_tokens||0);
+    const totalOut    = (s1Res.usage?.output_tokens||0) + (s2Res.usage?.output_tokens||0) + (s3Res.usage?.output_tokens||0);
+
+    // ── Render results ──
+    document.getElementById('loading-card').style.display = 'none';
+    document.getElementById('results').style.display = 'block';
+
+    document.getElementById('r-latency').textContent   = totalMs + 'ms';
+    document.getElementById('r-reduction').textContent = reduction + '%';
+    document.getElementById('r-in').textContent        = totalIn.toLocaleString();
+    document.getElementById('r-out').textContent       = totalOut.toLocaleString();
+
+    // Confidence badge
+    const conf = s3Out.confidence || 'high';
+    const confEl = document.getElementById('conf-badge');
+    confEl.className = `confidence-badge conf-${conf}`;
+    confEl.textContent = conf === 'high' ? '높음' : conf === 'medium' ? '보통' : '낮음';
+
+    // Final answer
+    document.getElementById('r-solution').textContent = s3Out.solution || '';
+    const notesEl = document.getElementById('r-notes');
+    notesEl.innerHTML = (s3Out.notes || []).map(n => `<div class="note-item">${esc(n)}</div>`).join('');
+
+    // Stage details
+    document.getElementById('s1-lat').textContent = s1Ms + 'ms';
+    document.getElementById('s1-tok').textContent = `${s1Res.usage?.input_tokens||0}→${s1Res.usage?.output_tokens||0} tok`;
+    document.getElementById('s1-out').textContent = JSON.stringify(s1Out, null, 2);
+
+    document.getElementById('s2-lat').textContent = s2Ms + 'ms';
+    document.getElementById('s2-tok').textContent = `${s2Res.usage?.input_tokens||0}→${s2Res.usage?.output_tokens||0} tok`;
+    document.getElementById('s2-out').textContent = JSON.stringify(s2Out, null, 2);
+
+    document.getElementById('s3-lat').textContent = s3Ms + 'ms';
+    document.getElementById('s3-tok').textContent = `${s3Res.usage?.input_tokens||0}→${s3Res.usage?.output_tokens||0} tok`;
+    document.getElementById('s3-out').textContent = JSON.stringify(s3Out, null, 2);
+
+    // Follow-ups
+    if (s3Out.follow_up_suggestions?.length) {
+      const fu = document.createElement('div');
+      fu.style.cssText = 'margin-top:14px;padding-top:14px;border-top:1px solid var(--border)';
+      fu.innerHTML = `<div style="font-size:11px;color:var(--dimmer);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">다음 단계 제안</div>` +
+        s3Out.follow_up_suggestions.map(s =>
+          `<div style="font-size:12px;color:var(--dim);margin-bottom:4px">• ${esc(s)}</div>`
+        ).join('');
+      document.getElementById('final-answer-box').appendChild(fu);
+    }
+
+  } catch (err) {
+    document.getElementById('loading-card').style.display = 'none';
+    setChip('chip1','idle'); setChip('chip2','idle'); setChip('chip3','idle');
+    const box = document.getElementById('error-box');
+    box.style.display = 'block';
+    box.innerHTML = `<div class="error-box">오류: ${esc(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Cmd/Ctrl+Enter to run
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runPipeline();
+});
+
+// Persist API key in localStorage
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('tc_api_key');
+  if (saved) document.getElementById('apiKey').value = saved;
+});
+document.getElementById('apiKey').addEventListener('change', e => {
+  if (e.target.value) localStorage.setItem('tc_api_key', e.target.value);
+});
+</script>
+</body>
+</html>
