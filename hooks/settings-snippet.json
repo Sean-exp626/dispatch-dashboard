@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/g.woo/Desktop/dispatch-dashboard/hooks/claude-hook.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/g.woo/Desktop/dispatch-dashboard/hooks/claude-hook.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/g.woo/Desktop/dispatch-dashboard/hooks/claude-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
