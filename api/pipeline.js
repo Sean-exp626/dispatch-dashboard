@@ -36,7 +36,14 @@ Output ONLY valid JSON (no markdown fences):
 }`;
 
 function parseJson(text) {
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  // 1. Strip markdown fences
+  let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  // 2. Extract the outermost {...} block in case the model adds prose before/after
+  const start = cleaned.indexOf('{');
+  const end   = cleaned.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    cleaned = cleaned.slice(start, end + 1);
+  }
   return JSON.parse(cleaned);
 }
 
