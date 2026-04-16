@@ -1,50 +1,53 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
-const S1_SYSTEM = `You are a Token-Efficiency Parser. Convert the user's raw query into a compact JSON object that strips all conversational filler.
+const S1_SYSTEM = `You are a Token-Efficiency Parser. Convert the user query into compact JSON.
 
-Output ONLY valid JSON (no markdown fences):
-{
-  "intent": "<one-line action verb phrase>",
-  "domain": "<technical domain>",
-  "constraints": ["<hard requirement>"],
-  "inputs": { "<var>": "<value or ?>" },
-  "outputs": ["<expected deliverable>"],
-  "edge_cases": ["<risk or ambiguity>"],
-  "context_tokens_saved": 0
-}`;
+RULES:
+- Output ONLY a single JSON object, no markdown fences, no prose before or after
+- All string values must be properly escaped (no raw newlines, no unescaped quotes inside strings)
+- Keep all string values short and on one line
 
-const S2_SYSTEM = `You are a Logic Architect. Receive a JSON task spec and design a complete solution plan.
+Output shape:
+{"intent":"<verb phrase>","domain":"<domain>","constraints":["<req>"],"inputs":{"key":"value"},"outputs":["<deliverable>"],"edge_cases":["<risk>"],"context_tokens_saved":0}`;
 
-Output ONLY valid JSON (no markdown fences):
-{
-  "architecture": "<1-2 sentence summary>",
-  "execution_steps": [{ "step": 1, "action": "<what>", "why": "<why>" }],
-  "edge_case_mitigations": [{ "risk": "<risk>", "mitigation": "<how>" }],
-  "pseudocode": "<pseudocode>",
-  "priority_order": ["<first>"],
-  "estimated_complexity": "medium"
-}`;
+const S2_SYSTEM = `You are a Logic Architect. Design a solution plan from the JSON task spec.
 
-const S3_SYSTEM = `You are a High-Fidelity Execution Agent. Receive a technical roadmap and produce the final solution.
+RULES:
+- Output ONLY a single JSON object, no markdown fences, no prose before or after
+- All string values must be properly escaped — NO raw newlines inside strings, use \\n instead
+- Keep string values concise
 
-Output ONLY valid JSON (no markdown fences):
-{
-  "solution": "<complete solution>",
-  "notes": ["<caveat>"],
-  "confidence": "high",
-  "follow_up_suggestions": ["<next step>"]
-}`;
+Output shape:
+{"architecture":"<summary>","execution_steps":[{"step":1,"action":"<what>","why":"<why>"}],"edge_case_mitigations":[{"risk":"<risk>","mitigation":"<fix>"}],"pseudocode":"<use \\n for line breaks>","priority_order":["<first>"],"estimated_complexity":"medium"}`;
 
-function parseJson(text) {
-  // 1. Strip markdown fences
-  let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-  // 2. Extract the outermost {...} block in case the model adds prose before/after
-  const start = cleaned.indexOf('{');
-  const end   = cleaned.lastIndexOf('}');
-  if (start !== -1 && end !== -1 && end > start) {
-    cleaned = cleaned.slice(start, end + 1);
+const S3_SYSTEM = `You are a High-Fidelity Execution Agent. Produce the final solution from the roadmap.
+
+RULES:
+- Output ONLY a single JSON object, no markdown fences, no prose before or after
+- All string values must be properly escaped — NO raw newlines inside strings, use \\n instead
+- The "solution" field should contain the complete answer with \\n for line breaks
+
+Output shape:
+{"solution":"<full solution with \\n line breaks>","notes":["<caveat>"],"confidence":"high","follow_up_suggestions":["<next step>"]}`;
+
+function extractJson(text) {
+  // Strip markdown fences
+  let s = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  // Extract outermost { ... }
+  const start = s.indexOf('{');
+  const end   = s.lastIndexOf('}');
+  if (start !== -1 && end > start) s = s.slice(start, end + 1);
+  try {
+    return JSON.parse(s);
+  } catch {
+    // Last-resort: replace literal newlines inside strings with \n
+    const fixed = s.replace(/("(?:[^"\\]|\\.)*")|(\n)/g, (m, str, nl) => str ? str : '\\n');
+    return JSON.parse(fixed);
   }
-  return JSON.parse(cleaned);
+}
+
+function sendEvent(res, event, data) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 module.exports = async function handler(req, res) {
@@ -53,60 +56,93 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   const { query, apiKey } = req.body;
   if (!query) return res.status(400).json({ error: 'query is required' });
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(400).json({ error: 'apiKey is required' });
+  if (!key)  return res.status(400).json({ error: 'apiKey is required' });
+
+  // Switch to SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
 
   const client = new Anthropic({ apiKey: key });
   const pipelineStart = Date.now();
 
+  const stages = [
+    { id: 1, label: 'Parser',    model: 'claude-haiku-4-5-20251001', system: S1_SYSTEM, maxTokens: 600,  userMsg: () => query },
+    { id: 2, label: 'Architect', model: 'claude-sonnet-4-6',         system: S2_SYSTEM, maxTokens: 1200, userMsg: (prev) => `Task spec:\n${JSON.stringify(prev)}` },
+    { id: 3, label: 'Execution', model: 'claude-opus-4-6',           system: S3_SYSTEM, maxTokens: 4096, userMsg: (prev, outputs) => `Original request: ${query}\n\nRoadmap:\n${JSON.stringify(outputs[1])}` },
+  ];
+
+  const outputs = {};
+
   try {
-    const s1Start = Date.now();
-    const s1Res = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 512,
-      system: S1_SYSTEM, messages: [{ role: 'user', content: query }],
-    });
-    const s1Ms = Date.now() - s1Start;
-    const s1Out = parseJson(s1Res.content[0].text);
+    for (const stage of stages) {
+      sendEvent(res, 'stage_start', { stage: stage.id, label: stage.label, model: stage.model });
 
-    const s2Start = Date.now();
-    const s2Res = await client.messages.create({
-      model: 'claude-sonnet-4-6', max_tokens: 1024,
-      system: S2_SYSTEM,
-      messages: [{ role: 'user', content: `Task specification:\n${JSON.stringify(s1Out, null, 2)}` }],
-    });
-    const s2Ms = Date.now() - s2Start;
-    const s2Out = parseJson(s2Res.content[0].text);
+      const userMsg = stage.id === 1 ? stage.userMsg()
+                    : stage.id === 2 ? stage.userMsg(outputs[1])
+                    : stage.userMsg(null, outputs);
 
-    const s3Start = Date.now();
-    const s3Res = await client.messages.create({
-      model: 'claude-opus-4-6', max_tokens: 4096,
-      system: S3_SYSTEM,
-      messages: [{ role: 'user', content: `Original request: ${query}\n\nTechnical roadmap:\n${JSON.stringify(s2Out, null, 2)}` }],
-    });
-    const s3Ms = Date.now() - s3Start;
-    let s3Out;
-    try   { s3Out = parseJson(s3Res.content[0].text); }
-    catch { s3Out = { solution: s3Res.content[0].text, notes: [], confidence: 'high', follow_up_suggestions: [] }; }
+      const stageStart = Date.now();
+      let fullText = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
 
-    const totalMs  = Date.now() - pipelineStart;
-    const totalIn  = (s1Res.usage?.input_tokens||0) + (s2Res.usage?.input_tokens||0) + (s3Res.usage?.input_tokens||0);
-    const totalOut = (s1Res.usage?.output_tokens||0) + (s2Res.usage?.output_tokens||0) + (s3Res.usage?.output_tokens||0);
-    const reduction = (((query.length - JSON.stringify(s1Out).length) / query.length) * 100).toFixed(1);
+      const stream = await client.messages.stream({
+        model: stage.model,
+        max_tokens: stage.maxTokens,
+        system: stage.system,
+        messages: [{ role: 'user', content: userMsg }],
+      });
 
-    res.json({
-      query, tokenReductionRate: `${reduction}%`,
-      totalLatencyMs: totalMs, totalInputTokens: totalIn, totalOutputTokens: totalOut,
-      stages: {
-        parser:    { metrics: { latencyMs: s1Ms, inputTokens: s1Res.usage?.input_tokens, outputTokens: s1Res.usage?.output_tokens }, output: s1Out },
-        architect: { metrics: { latencyMs: s2Ms, inputTokens: s2Res.usage?.input_tokens, outputTokens: s2Res.usage?.output_tokens }, output: s2Out },
-        execution: { metrics: { latencyMs: s3Ms, inputTokens: s3Res.usage?.input_tokens, outputTokens: s3Res.usage?.output_tokens }, output: s3Out },
-      },
-    });
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          const chunk = event.delta.text;
+          fullText += chunk;
+          sendEvent(res, 'token', { stage: stage.id, text: chunk });
+        }
+        if (event.type === 'message_start') {
+          inputTokens = event.message?.usage?.input_tokens || 0;
+        }
+        if (event.type === 'message_delta') {
+          outputTokens = event.usage?.output_tokens || 0;
+        }
+      }
+
+      let parsed;
+      try   { parsed = extractJson(fullText); }
+      catch { parsed = { raw: fullText }; }
+
+      outputs[stage.id] = parsed;
+      const latencyMs = Date.now() - stageStart;
+
+      sendEvent(res, 'stage_end', {
+        stage: stage.id,
+        metrics: { latencyMs, inputTokens, outputTokens },
+        output: parsed,
+      });
+    }
+
+    const totalMs     = Date.now() - pipelineStart;
+    const totalIn     = [1,2,3].reduce((a,i) => a, 0); // calculated client-side
+    const reduction   = (() => {
+      try {
+        const orig = query.length;
+        const comp = JSON.stringify(outputs[1]).length;
+        return (((orig - comp) / orig) * 100).toFixed(1);
+      } catch { return '0.0'; }
+    })();
+
+    sendEvent(res, 'done', { totalLatencyMs: totalMs, tokenReductionRate: `${reduction}%` });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendEvent(res, 'error', { message: err.message });
   }
+
+  res.end();
 };

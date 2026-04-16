@@ -1,133 +1,154 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Team Coconut — Multi-Agent Pipeline</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #0d1117; --bg2: #161b22; --bg3: #1c2128;
-      --border: #30363d; --text: #e6edf3; --dim: #8b949e; --dimmer: #484f58;
-      --blue: #58a6ff; --green: #3fb950; --yellow: #e3b341;
-      --orange: #f0883e; --pink: #ff7b72; --red: #f85149;
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;
+      --border:#30363d;--text:#e6edf3;--dim:#8b949e;--dimmer:#484f58;
+      --blue:#58a6ff;--green:#3fb950;--yellow:#e3b341;
+      --orange:#f0883e;--pink:#ff7b72;--red:#f85149;
     }
+    html,body{min-height:100%;background:var(--bg);color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.6}
 
-    html, body { min-height: 100%; background: var(--bg); color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px; line-height: 1.6; }
+    header{background:var(--bg2);border-bottom:1px solid var(--border);
+      padding:13px 24px;position:sticky;top:0;z-index:100;
+      display:flex;align-items:center;justify-content:space-between}
+    .logo{font-size:16px;font-weight:700}
+    .logo span{color:var(--pink)}
+    .subtitle{font-size:11px;color:var(--dimmer);margin-top:2px}
 
-    header { background: var(--bg2); border-bottom: 1px solid var(--border);
-      padding: 14px 24px; position: sticky; top: 0; z-index: 100; }
-    .logo { font-size: 16px; font-weight: 700; }
-    .logo span { color: var(--pink); }
-    .subtitle { font-size: 11px; color: var(--dimmer); margin-top: 2px; }
+    .container{max-width:1000px;margin:24px auto;padding:0 18px;display:flex;flex-direction:column;gap:16px}
 
-    .container { max-width: 860px; margin: 28px auto; padding: 0 20px;
-      display: flex; flex-direction: column; gap: 18px; }
+    .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+    .card-header{padding:10px 16px;border-bottom:1px solid var(--border);
+      font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;
+      color:var(--dim);display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .card-title{display:flex;align-items:center;gap:7px}
+    .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .card-body{padding:14px 16px}
 
-    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    label{display:block;font-size:11px;color:var(--dim);margin-bottom:5px;
+      font-weight:500;text-transform:uppercase;letter-spacing:.4px}
+    input,textarea{width:100%;background:var(--bg3);border:1px solid var(--border);
+      border-radius:7px;color:var(--text);font-size:13px;padding:9px 11px;
+      outline:none;font-family:inherit;transition:border-color .15s}
+    input:focus,textarea:focus{border-color:var(--blue)}
+    input::placeholder,textarea::placeholder{color:var(--dimmer)}
+    textarea{resize:vertical;min-height:72px}
 
-    .card-header { padding: 11px 18px; border-bottom: 1px solid var(--border);
-      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px;
-      color: var(--dim); display: flex; align-items: center; gap: 8px; }
+    .field{margin-bottom:13px}
+    .field:last-child{margin-bottom:0}
+    .key-row{display:flex;gap:8px;align-items:center}
+    .key-row input{flex:1}
+    .key-status{font-size:11px;margin-top:4px}
+    .key-status.saved{color:var(--green)}
+    .key-status.unsaved{color:var(--dimmer)}
 
-    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .card-body { padding: 16px 18px; }
+    .btn-row{display:flex;gap:8px}
+    .btn{padding:8px 18px;border-radius:7px;border:none;font-size:13px;font-weight:700;
+      cursor:pointer;transition:opacity .15s;white-space:nowrap}
+    .btn:disabled{opacity:.35;cursor:not-allowed}
+    .btn-primary{background:var(--pink);color:#0d1117}
+    .btn-primary:hover:not(:disabled){opacity:.85}
+    .btn-stop{background:var(--bg3);color:var(--red);border:1px solid rgba(248,81,73,.35);display:none}
+    .btn-stop:hover:not(:disabled){background:rgba(248,81,73,.1)}
+    .btn-stop.show{display:block}
 
-    label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 5px;
-      font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+    /* Pipeline flow bar */
+    .flow-bar{display:flex;align-items:center;gap:7px;padding:10px 16px;
+      background:var(--bg3);border-top:1px solid var(--border);overflow-x:auto}
+    .chip{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;
+      border:1px solid var(--border);background:var(--bg2);white-space:nowrap;
+      font-size:11px;font-weight:500;transition:all .25s}
+    .chip.idle{opacity:.3}
+    .chip.running{box-shadow:0 0 0 1px currentColor;opacity:1}
+    .chip.done{opacity:.55}
+    .flow-arrow{color:var(--dimmer);flex-shrink:0;font-size:12px}
 
-    input, textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 7px; color: var(--text); font-size: 13px; padding: 9px 12px;
-      outline: none; font-family: inherit; transition: border-color 0.15s; }
-    input:focus, textarea:focus { border-color: var(--blue); }
-    input::placeholder, textarea::placeholder { color: var(--dimmer); }
-    textarea { resize: vertical; min-height: 80px; }
+    /* Stream grid */
+    .stream-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    @media(max-width:700px){.stream-grid{grid-template-columns:1fr}}
 
-    .field { margin-bottom: 14px; }
-    .field:last-child { margin-bottom: 0; }
+    .stream-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+      overflow:hidden;display:flex;flex-direction:column}
+    .stream-header{padding:9px 13px;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .stream-title{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+      text-transform:uppercase;letter-spacing:.5px}
+    .stream-meta{font-size:10px;color:var(--dimmer);font-variant-numeric:tabular-nums;text-align:right}
 
-    .key-row { display: flex; gap: 8px; align-items: center; }
-    .key-row input { flex: 1; }
+    .stream-body{flex:1;height:220px;overflow-y:auto;padding:10px 12px;
+      font-family:'SF Mono','Monaco','Cascadia Code',monospace;font-size:11.5px;
+      line-height:1.6;color:var(--dim);white-space:pre-wrap;word-break:break-word;
+      scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+    .stream-body::-webkit-scrollbar{width:3px}
+    .stream-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    .stream-body.idle{color:var(--dimmer);font-style:italic}
+    .stream-body.running{color:var(--text)}
+    .stream-body.done{color:var(--dim)}
 
-    .key-status { font-size: 11px; margin-top: 5px; }
-    .key-status.saved   { color: var(--green); }
-    .key-status.unsaved { color: var(--dimmer); }
+    .cursor{display:inline-block;width:7px;height:13px;background:var(--pink);
+      vertical-align:middle;animation:blink .7s step-end infinite;margin-left:1px}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 
-    .btn-row { display: flex; gap: 8px; }
+    .stage-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+      border-radius:10px;font-size:10px;font-weight:600;margin-top:4px}
+    .badge-waiting{background:rgba(72,79,88,.3);color:var(--dimmer)}
+    .badge-running{background:rgba(240,136,62,.15);color:var(--orange)}
+    .badge-done{background:rgba(63,185,80,.12);color:var(--green)}
+    .badge-error{background:rgba(248,81,73,.12);color:var(--red)}
 
-    .btn { padding: 9px 20px; border-radius: 7px; border: none; font-size: 13px;
-      font-weight: 700; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
-    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .btn-primary { background: var(--pink); color: #0d1117; }
-    .btn-primary:hover:not(:disabled) { opacity: 0.85; }
-    .btn-stop { background: var(--bg3); color: var(--red); border: 1px solid rgba(248,81,73,0.4); display: none; }
-    .btn-stop:hover:not(:disabled) { background: rgba(248,81,73,0.1); }
-    .btn-stop.visible { display: block; }
+    /* Summary */
+    .summary-bar{display:flex;flex-wrap:wrap;gap:20px;padding:13px 16px;
+      background:var(--bg3);border-bottom:1px solid var(--border)}
+    .m-item{display:flex;flex-direction:column;gap:1px}
+    .m-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--dimmer)}
+    .m-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
 
-    .pipeline-flow { display: flex; align-items: center; gap: 8px; padding: 12px 18px;
-      background: var(--bg3); border-top: 1px solid var(--border); overflow-x: auto; }
+    /* Final answer */
+    .final-answer{padding:16px}
+    .final-label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;
+      color:var(--pink);font-weight:600;margin-bottom:10px}
+    .solution-text{font-family:'SF Mono','Monaco','Cascadia Code',monospace;
+      font-size:12.5px;line-height:1.8;color:var(--text);white-space:pre-wrap;word-break:break-word}
+    .note-item{font-size:12px;color:var(--dim);display:flex;gap:5px;margin-top:4px}
+    .note-item::before{content:'→';color:var(--dimmer)}
+    .followup-section{margin-top:13px;padding-top:13px;border-top:1px solid var(--border)}
+    .followup-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--dimmer);margin-bottom:6px}
+    .followup-item{font-size:12px;color:var(--dim);margin-bottom:3px}
+    .followup-item::before{content:'• '}
 
-    .stage-chip { display: flex; align-items: center; gap: 5px; padding: 4px 10px;
-      border-radius: 20px; border: 1px solid var(--border); background: var(--bg2);
-      white-space: nowrap; font-size: 11px; font-weight: 500; transition: all 0.3s; }
-    .stage-chip.active { box-shadow: 0 0 0 1px currentColor; }
-    .stage-chip.idle   { opacity: 0.3; }
-    .stage-chip.done   { opacity: 0.55; }
-    .arrow { color: var(--dimmer); flex-shrink: 0; }
+    /* Collapsible stage detail */
+    .stage-detail-row{border-top:1px solid var(--border)}
+    .stage-detail-header{display:flex;align-items:center;justify-content:space-between;
+      padding:9px 16px;cursor:pointer;user-select:none;transition:background .1s}
+    .stage-detail-header:hover{background:var(--bg3)}
+    .stage-detail-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+    .stage-detail-meta{display:flex;gap:10px;font-size:11px;color:var(--dim);align-items:center}
+    .stage-detail-body{display:none;padding:12px 16px;background:var(--bg3);border-top:1px solid var(--border)}
+    .stage-detail-body.open{display:block}
+    pre{font-family:'SF Mono','Monaco','Cascadia Code',monospace;font-size:11.5px;
+      color:var(--dim);white-space:pre-wrap;word-break:break-word;line-height:1.5}
 
-    #loadingCard { display: none; }
-    .loading-wrap { padding: 28px 18px; display: flex; flex-direction: column;
-      align-items: center; gap: 14px; }
-    .spinner-lg { width: 30px; height: 30px; border: 3px solid var(--border);
-      border-top-color: var(--pink); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .loading-msg { font-size: 13px; color: var(--dim); }
+    .conf-badge{display:inline-flex;align-items:center;padding:2px 8px;
+      border-radius:10px;font-size:11px;font-weight:600}
+    .conf-high{background:rgba(63,185,80,.12);color:var(--green)}
+    .conf-medium{background:rgba(227,179,65,.12);color:var(--yellow)}
+    .conf-low{background:rgba(248,81,73,.12);color:var(--red)}
 
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-box{padding:13px 16px;color:var(--red);background:rgba(248,81,73,.07);
+      border:1px solid rgba(248,81,73,.2);border-radius:8px;font-size:13px;display:none}
 
-    #resultsCard { display: none; }
+    #resultsCard{display:none}
 
-    .summary-bar { display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 18px;
-      background: var(--bg3); border-bottom: 1px solid var(--border); }
-    .metric-item { display: flex; flex-direction: column; gap: 1px; }
-    .metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--dimmer); }
-    .metric-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-    .final-answer { padding: 18px; border-bottom: 1px solid var(--border); }
-    .final-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
-      color: var(--pink); font-weight: 600; margin-bottom: 12px; }
-    .solution-text { font-family: 'SF Mono','Monaco','Cascadia Code',monospace;
-      font-size: 12.5px; line-height: 1.8; color: var(--text); white-space: pre-wrap; word-break: break-word; }
-    .note-item { font-size: 12px; color: var(--dim); display: flex; gap: 6px; margin-bottom: 3px; }
-    .note-item::before { content: '→'; color: var(--dimmer); }
-    .followups { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
-    .followup-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--dimmer); margin-bottom: 8px; }
-    .followup-item { font-size: 12px; color: var(--dim); margin-bottom: 3px; }
-    .followup-item::before { content: '• '; }
-
-    .stage-row { border-top: 1px solid var(--border); }
-    .stage-row-header { display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 18px; cursor: pointer; user-select: none; transition: background 0.1s; }
-    .stage-row-header:hover { background: var(--bg3); }
-    .stage-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
-    .stage-meta { display: flex; gap: 12px; font-size: 11px; color: var(--dim); align-items: center; }
-    .stage-content { display: none; padding: 14px 18px; background: var(--bg3); border-top: 1px solid var(--border); }
-    .stage-content.open { display: block; }
-    pre { font-family: 'SF Mono','Monaco','Cascadia Code',monospace; font-size: 12px;
-      color: var(--dim); white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
-
-    .confidence-badge { display: inline-flex; align-items: center; padding: 2px 8px;
-      border-radius: 10px; font-size: 11px; font-weight: 600; }
-    .conf-high   { background: rgba(63,185,80,0.12); color: var(--green); }
-    .conf-medium { background: rgba(227,179,65,0.12); color: var(--yellow); }
-    .conf-low    { background: rgba(248,81,73,0.12); color: var(--red); }
-
-    .error-box { padding: 14px 18px; color: var(--red); background: rgba(248,81,73,0.07);
-      border: 1px solid rgba(248,81,73,0.2); border-radius: 8px; font-size: 13px; display: none; }
-
-    @media (max-width: 600px) { .summary-bar { gap: 14px; } }
+    .spinner{width:8px;height:8px;border:1.5px solid currentColor;border-top-color:transparent;
+      border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
@@ -135,91 +156,133 @@
 <header>
   <div>
     <div class="logo">Team <span>Coconut</span></div>
-    <div class="subtitle">Haiku → Sonnet → Opus · Multi-Agent Pipeline</div>
+    <div class="subtitle">Haiku → Sonnet → Opus · 실시간 Multi-Agent Pipeline</div>
   </div>
 </header>
 
 <div class="container">
 
+  <!-- Input card -->
   <div class="card">
-    <div class="card-header"><div class="dot" style="background:var(--pink)"></div>작업 입력</div>
+    <div class="card-header">
+      <div class="card-title"><div class="dot" style="background:var(--pink)"></div>작업 입력</div>
+    </div>
     <div class="card-body">
       <div class="field">
-        <label>API Key</label>
+        <label>Anthropic API Key</label>
         <div class="key-row">
-          <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="onKeyInput()" />
-          <button class="btn btn-primary" style="padding:9px 14px;font-size:12px" onclick="saveKey()">저장</button>
+          <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="onKeyInput()"/>
+          <button class="btn btn-primary" style="padding:8px 13px;font-size:12px" onclick="saveKey()">저장</button>
         </div>
         <div class="key-status unsaved" id="keyStatus">저장된 키 없음</div>
       </div>
       <div class="field">
         <label>작업 내용</label>
-        <textarea id="query" placeholder="무엇을 만들거나 분석할지 자유롭게 입력하세요.&#10;예: JWT 인증을 검증하는 REST API 엔드포인트를 만들어줘"></textarea>
+        <textarea id="query" placeholder="무엇을 만들거나 분석할지 입력하세요.&#10;예: JWT 인증 REST API 엔드포인트를 만들어줘"></textarea>
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="runBtn" onclick="runPipeline()">▶ 실행</button>
         <button class="btn btn-stop" id="stopBtn" onclick="stopPipeline()">■ 중지</button>
       </div>
     </div>
-    <div class="pipeline-flow">
-      <div class="stage-chip idle" id="chip1" style="color:var(--yellow)">① Parser · Haiku</div>
-      <span class="arrow">→</span>
-      <div class="stage-chip idle" id="chip2" style="color:var(--orange)">② Architect · Sonnet</div>
-      <span class="arrow">→</span>
-      <div class="stage-chip idle" id="chip3" style="color:var(--pink)">③ Execution · Opus</div>
+    <div class="flow-bar">
+      <div class="chip idle" id="chip1" style="color:var(--yellow)">① Parser · Haiku</div>
+      <span class="flow-arrow">→</span>
+      <div class="chip idle" id="chip2" style="color:var(--orange)">② Architect · Sonnet</div>
+      <span class="flow-arrow">→</span>
+      <div class="chip idle" id="chip3" style="color:var(--pink)">③ Execution · Opus</div>
     </div>
   </div>
 
   <div class="error-box" id="errorBox"></div>
 
-  <div class="card" id="loadingCard">
-    <div class="loading-wrap">
-      <div class="spinner-lg"></div>
-      <div class="loading-msg">파이프라인 실행 중… (Haiku → Sonnet → Opus)</div>
+  <!-- Live stream grid -->
+  <div class="stream-grid">
+    <!-- Stage 1 -->
+    <div class="stream-card">
+      <div class="stream-header">
+        <div class="stream-title" style="color:var(--yellow)">
+          <div class="dot" style="background:var(--yellow)"></div>Stage 1 · Haiku
+        </div>
+        <div class="stream-meta" id="s1meta">
+          <div class="stage-badge badge-waiting" id="s1badge">대기 중</div>
+        </div>
+      </div>
+      <div class="stream-body idle" id="s1stream">모델 응답을 기다리는 중…</div>
+    </div>
+
+    <!-- Stage 2 -->
+    <div class="stream-card">
+      <div class="stream-header">
+        <div class="stream-title" style="color:var(--orange)">
+          <div class="dot" style="background:var(--orange)"></div>Stage 2 · Sonnet
+        </div>
+        <div class="stream-meta" id="s2meta">
+          <div class="stage-badge badge-waiting" id="s2badge">대기 중</div>
+        </div>
+      </div>
+      <div class="stream-body idle" id="s2stream">모델 응답을 기다리는 중…</div>
+    </div>
+
+    <!-- Stage 3 -->
+    <div class="stream-card">
+      <div class="stream-header">
+        <div class="stream-title" style="color:var(--pink)">
+          <div class="dot" style="background:var(--pink)"></div>Stage 3 · Opus
+        </div>
+        <div class="stream-meta" id="s3meta">
+          <div class="stage-badge badge-waiting" id="s3badge">대기 중</div>
+        </div>
+      </div>
+      <div class="stream-body idle" id="s3stream">모델 응답을 기다리는 중…</div>
     </div>
   </div>
 
+  <!-- Results -->
   <div class="card" id="resultsCard">
     <div class="card-header">
-      <div class="dot" style="background:var(--green)"></div>결과
-      <span id="confBadge"></span>
+      <div class="card-title">
+        <div class="dot" style="background:var(--green)"></div>최종 결과
+        <span id="confBadge"></span>
+      </div>
     </div>
     <div class="summary-bar">
-      <div class="metric-item"><span class="metric-label">총 소요시간</span><span class="metric-val" id="rLatency" style="color:var(--blue)">—</span></div>
-      <div class="metric-item"><span class="metric-label">토큰 압축률</span><span class="metric-val" id="rReduction" style="color:var(--green)">—</span></div>
-      <div class="metric-item"><span class="metric-label">입력 토큰</span><span class="metric-val" id="rIn" style="color:var(--dim)">—</span></div>
-      <div class="metric-item"><span class="metric-label">출력 토큰</span><span class="metric-val" id="rOut" style="color:var(--dim)">—</span></div>
+      <div class="m-item"><span class="m-label">총 소요시간</span><span class="m-val" id="rLatency" style="color:var(--blue)">—</span></div>
+      <div class="m-item"><span class="m-label">토큰 압축률</span><span class="m-val" id="rReduction" style="color:var(--green)">—</span></div>
+      <div class="m-item"><span class="m-label">S1 입/출력</span><span class="m-val" id="rTok1" style="color:var(--dim)">—</span></div>
+      <div class="m-item"><span class="m-label">S2 입/출력</span><span class="m-val" id="rTok2" style="color:var(--dim)">—</span></div>
+      <div class="m-item"><span class="m-label">S3 입/출력</span><span class="m-val" id="rTok3" style="color:var(--dim)">—</span></div>
     </div>
     <div class="final-answer">
       <div class="final-label">최종 답변 (Opus)</div>
       <div class="solution-text" id="rSolution"></div>
       <div id="rNotes"></div>
-      <div class="followups" id="rFollowups" style="display:none">
+      <div class="followup-section" id="rFollowups" style="display:none">
         <div class="followup-label">다음 단계 제안</div>
         <div id="rFollowupList"></div>
       </div>
     </div>
     <div>
-      <div class="stage-row">
-        <div class="stage-row-header" onclick="toggle('s1')">
-          <div class="stage-title" style="color:var(--yellow)"><div class="dot" style="background:var(--yellow)"></div>Stage 1 — Parser (Haiku)</div>
-          <div class="stage-meta"><span id="s1Lat">—</span><span id="s1Tok">—</span><span style="color:var(--dimmer)">▾</span></div>
+      <div class="stage-detail-row">
+        <div class="stage-detail-header" onclick="toggleDetail('d1')">
+          <div class="stage-detail-title" style="color:var(--yellow)"><div class="dot" style="background:var(--yellow)"></div>Stage 1 — Parser 상세</div>
+          <div class="stage-detail-meta"><span id="d1lat">—</span><span id="d1tok">—</span><span style="color:var(--dimmer)">▾</span></div>
         </div>
-        <div class="stage-content" id="s1"><pre id="s1Out"></pre></div>
+        <div class="stage-detail-body" id="d1"><pre id="d1out"></pre></div>
       </div>
-      <div class="stage-row">
-        <div class="stage-row-header" onclick="toggle('s2')">
-          <div class="stage-title" style="color:var(--orange)"><div class="dot" style="background:var(--orange)"></div>Stage 2 — Architect (Sonnet)</div>
-          <div class="stage-meta"><span id="s2Lat">—</span><span id="s2Tok">—</span><span style="color:var(--dimmer)">▾</span></div>
+      <div class="stage-detail-row">
+        <div class="stage-detail-header" onclick="toggleDetail('d2')">
+          <div class="stage-detail-title" style="color:var(--orange)"><div class="dot" style="background:var(--orange)"></div>Stage 2 — Architect 상세</div>
+          <div class="stage-detail-meta"><span id="d2lat">—</span><span id="d2tok">—</span><span style="color:var(--dimmer)">▾</span></div>
         </div>
-        <div class="stage-content" id="s2"><pre id="s2Out"></pre></div>
+        <div class="stage-detail-body" id="d2"><pre id="d2out"></pre></div>
       </div>
-      <div class="stage-row">
-        <div class="stage-row-header" onclick="toggle('s3')">
-          <div class="stage-title" style="color:var(--pink)"><div class="dot" style="background:var(--pink)"></div>Stage 3 — Execution (Opus)</div>
-          <div class="stage-meta"><span id="s3Lat">—</span><span id="s3Tok">—</span><span style="color:var(--dimmer)">▾</span></div>
+      <div class="stage-detail-row">
+        <div class="stage-detail-header" onclick="toggleDetail('d3')">
+          <div class="stage-detail-title" style="color:var(--pink)"><div class="dot" style="background:var(--pink)"></div>Stage 3 — Execution 상세</div>
+          <div class="stage-detail-meta"><span id="d3lat">—</span><span id="d3tok">—</span><span style="color:var(--dimmer)">▾</span></div>
         </div>
-        <div class="stage-content" id="s3"><pre id="s3Out"></pre></div>
+        <div class="stage-detail-body" id="d3"><pre id="d3out"></pre></div>
       </div>
     </div>
   </div>
@@ -228,42 +291,49 @@
 
 <script>
 let abortCtrl = null;
+const stageMetrics = {};
 
+// ── API Key ──────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
   const saved = localStorage.getItem('tc_api_key');
   if (saved) {
     document.getElementById('apiKey').value = saved;
-    document.getElementById('keyStatus').textContent = '✓ API 키 저장됨';
-    document.getElementById('keyStatus').className = 'key-status saved';
+    setKeyStatus(true);
   }
 });
-
-function onKeyInput() {
-  document.getElementById('keyStatus').textContent = '미저장 — 저장 버튼을 눌러주세요';
-  document.getElementById('keyStatus').className = 'key-status unsaved';
+function onKeyInput() { setKeyStatus(false); }
+function setKeyStatus(saved) {
+  const el = document.getElementById('keyStatus');
+  el.textContent = saved ? '✓ API 키 저장됨' : '미저장 — 저장 버튼을 눌러주세요';
+  el.className = 'key-status ' + (saved ? 'saved' : 'unsaved');
 }
-
 function saveKey() {
   const key = document.getElementById('apiKey').value.trim();
   if (!key) { alert('API 키를 입력해주세요.'); return; }
   localStorage.setItem('tc_api_key', key);
-  document.getElementById('keyStatus').textContent = '✓ API 키 저장됨';
-  document.getElementById('keyStatus').className = 'key-status saved';
+  setKeyStatus(true);
 }
 
+// ── Pipeline ─────────────────────────────────────────────────────────────────
 async function runPipeline() {
   const query  = document.getElementById('query').value.trim();
   const apiKey = document.getElementById('apiKey').value.trim() || localStorage.getItem('tc_api_key') || '';
-
   if (!query)  { alert('작업 내용을 입력해주세요.'); return; }
   if (!apiKey) { alert('API 키를 입력하고 저장해주세요.'); return; }
 
+  // Reset
   document.getElementById('resultsCard').style.display = 'none';
   document.getElementById('errorBox').style.display = 'none';
-  document.getElementById('loadingCard').style.display = 'block';
   document.getElementById('runBtn').disabled = true;
-  document.getElementById('stopBtn').classList.add('visible');
-  setChips('active');
+  document.getElementById('stopBtn').classList.add('show');
+  [1,2,3].forEach(i => {
+    setChip(i, 'idle');
+    setBadge(i, 'waiting', '대기 중');
+    const sb = document.getElementById('s' + i + 'stream');
+    sb.textContent = '모델 응답을 기다리는 중…';
+    sb.className = 'stream-body idle';
+    document.getElementById('s' + i + 'meta').querySelector('.stage-badge').replaceWith(makeBadge(i, 'waiting', '대기 중'));
+  });
 
   abortCtrl = new AbortController();
 
@@ -274,86 +344,168 @@ async function runPipeline() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, apiKey }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `서버 오류 ${res.status}`);
-    renderResults(data);
-    setChips('done');
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `서버 오류 ${res.status}`);
+    }
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let   buf     = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      // Parse SSE lines
+      const lines = buf.split('\n');
+      buf = lines.pop(); // keep incomplete line
+
+      let eventName = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) { eventName = line.slice(7).trim(); continue; }
+        if (line.startsWith('data: '))  {
+          try {
+            const data = JSON.parse(line.slice(6));
+            handleEvent(eventName, data);
+          } catch {}
+          eventName = '';
+        }
+      }
+    }
+
   } catch (err) {
     if (err.name === 'AbortError') return;
-    document.getElementById('loadingCard').style.display = 'none';
     const box = document.getElementById('errorBox');
     box.style.display = 'block';
     box.textContent = '오류: ' + err.message;
-    setChips('idle');
+    [1,2,3].forEach(i => { setChip(i,'idle'); updateBadge(i,'waiting','대기 중'); });
   } finally {
     document.getElementById('runBtn').disabled = false;
-    document.getElementById('stopBtn').classList.remove('visible');
+    document.getElementById('stopBtn').classList.remove('show');
     abortCtrl = null;
   }
 }
 
 function stopPipeline() {
   if (abortCtrl) { abortCtrl.abort(); abortCtrl = null; }
-  document.getElementById('loadingCard').style.display = 'none';
   document.getElementById('runBtn').disabled = false;
-  document.getElementById('stopBtn').classList.remove('visible');
-  setChips('idle');
+  document.getElementById('stopBtn').classList.remove('show');
+  [1,2,3].forEach(i => { setChip(i,'idle'); updateBadge(i,'waiting','중지됨'); });
 }
 
-function renderResults(data) {
-  document.getElementById('loadingCard').style.display = 'none';
-  document.getElementById('resultsCard').style.display = 'block';
+// ── SSE event handler ─────────────────────────────────────────────────────────
+function handleEvent(name, data) {
+  const i = data.stage;
 
-  const s1 = data.stages.parser;
-  const s2 = data.stages.architect;
-  const s3 = data.stages.execution;
+  if (name === 'stage_start') {
+    setChip(i, 'running');
+    updateBadge(i, 'running', '생성 중…');
+    const sb = document.getElementById('s' + i + 'stream');
+    sb.textContent = '';
+    sb.className = 'stream-body running';
+    stageMetrics[i] = { start: Date.now() };
+  }
 
-  document.getElementById('rLatency').textContent   = data.totalLatencyMs + 'ms';
-  document.getElementById('rReduction').textContent = data.tokenReductionRate;
-  document.getElementById('rIn').textContent        = (data.totalInputTokens||0).toLocaleString();
-  document.getElementById('rOut').textContent       = (data.totalOutputTokens||0).toLocaleString();
+  if (name === 'token') {
+    const sb = document.getElementById('s' + i + 'stream');
+    // Remove cursor span if present
+    const cur = sb.querySelector('.cursor');
+    if (cur) cur.remove();
+    sb.appendChild(document.createTextNode(data.text));
+    // Add cursor
+    const c = document.createElement('span');
+    c.className = 'cursor';
+    sb.appendChild(c);
+    sb.scrollTop = sb.scrollHeight;
+  }
 
-  const conf = s3.output.confidence || 'high';
+  if (name === 'stage_end') {
+    setChip(i, 'done');
+    const m = data.metrics;
+    stageMetrics[i] = m;
+    updateBadge(i, 'done', `${m.latencyMs}ms · ${m.outputTokens} tok`);
+    // Remove cursor
+    const sb = document.getElementById('s' + i + 'stream');
+    const cur = sb.querySelector('.cursor');
+    if (cur) cur.remove();
+    sb.className = 'stream-body done';
+    // Fill detail panel
+    document.getElementById('d' + i + 'lat').textContent = m.latencyMs + 'ms';
+    document.getElementById('d' + i + 'tok').textContent = `${m.inputTokens}→${m.outputTokens} tok`;
+    document.getElementById('d' + i + 'out').textContent = JSON.stringify(data.output, null, 2);
+    // Token summary
+    document.getElementById('rTok' + i).textContent = `${m.inputTokens}/${m.outputTokens}`;
+    // Stage 3 final answer
+    if (i === 3) renderFinalAnswer(data.output);
+  }
+
+  if (name === 'done') {
+    document.getElementById('rLatency').textContent   = data.totalLatencyMs + 'ms';
+    document.getElementById('rReduction').textContent = data.tokenReductionRate;
+    document.getElementById('resultsCard').style.display = 'block';
+    document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  if (name === 'error') {
+    const box = document.getElementById('errorBox');
+    box.style.display = 'block';
+    box.textContent = '오류: ' + data.message;
+  }
+}
+
+function renderFinalAnswer(output) {
+  const conf = output.confidence || 'high';
   const cb = document.getElementById('confBadge');
-  cb.className = `confidence-badge conf-${conf}`;
+  cb.className = 'conf-badge conf-' + conf;
   cb.textContent = conf === 'high' ? '신뢰도 높음' : conf === 'medium' ? '신뢰도 보통' : '신뢰도 낮음';
 
-  document.getElementById('rSolution').textContent = s3.output.solution || '';
-  document.getElementById('rNotes').innerHTML = (s3.output.notes||[]).map(n=>`<div class="note-item">${esc(n)}</div>`).join('');
+  document.getElementById('rSolution').textContent = output.solution || '';
+  document.getElementById('rNotes').innerHTML = (output.notes||[]).map(n=>`<div class="note-item">${esc(n)}</div>`).join('');
 
-  const fu = s3.output.follow_up_suggestions || [];
+  const fu = output.follow_up_suggestions || [];
   if (fu.length) {
     document.getElementById('rFollowups').style.display = 'block';
     document.getElementById('rFollowupList').innerHTML = fu.map(s=>`<div class="followup-item">${esc(s)}</div>`).join('');
+  } else {
+    document.getElementById('rFollowups').style.display = 'none';
   }
-
-  document.getElementById('s1Lat').textContent = (s1.metrics.latencyMs||0) + 'ms';
-  document.getElementById('s1Tok').textContent = `${s1.metrics.inputTokens||0}→${s1.metrics.outputTokens||0} tok`;
-  document.getElementById('s1Out').textContent = JSON.stringify(s1.output, null, 2);
-
-  document.getElementById('s2Lat').textContent = (s2.metrics.latencyMs||0) + 'ms';
-  document.getElementById('s2Tok').textContent = `${s2.metrics.inputTokens||0}→${s2.metrics.outputTokens||0} tok`;
-  document.getElementById('s2Out').textContent = JSON.stringify(s2.output, null, 2);
-
-  document.getElementById('s3Lat').textContent = (s3.metrics.latencyMs||0) + 'ms';
-  document.getElementById('s3Tok').textContent = `${s3.metrics.inputTokens||0}→${s3.metrics.outputTokens||0} tok`;
-  document.getElementById('s3Out').textContent = JSON.stringify(s3.output, null, 2);
 }
 
-function setChips(state) {
-  ['chip1','chip2','chip3'].forEach(id => {
-    document.getElementById(id).className = 'stage-chip ' + state;
-  });
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setChip(i, state) {
+  document.getElementById('chip'+i).className = 'chip ' + state;
 }
 
-function toggle(id) { document.getElementById(id).classList.toggle('open'); }
+function makeBadge(i, type, text) {
+  const el = document.createElement('div');
+  el.id = 's'+i+'badge';
+  el.className = 'stage-badge badge-' + type;
+  if (type === 'running') {
+    const sp = document.createElement('span'); sp.className = 'spinner'; el.appendChild(sp);
+  }
+  el.appendChild(document.createTextNode(text));
+  return el;
+}
+
+function updateBadge(i, type, text) {
+  const old = document.getElementById('s'+i+'badge');
+  const nb  = makeBadge(i, type, text);
+  old.replaceWith(nb);
+}
+
+function setBadge(i, type, text) { updateBadge(i, type, text); }
+
+function toggleDetail(id) { document.getElementById(id).classList.toggle('open'); }
 
 function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 document.addEventListener('keydown', e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runPipeline();
+  if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') runPipeline();
   if (e.key === 'Escape' && abortCtrl) stopPipeline();
 });
 </script>
