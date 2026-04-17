@@ -81,7 +81,8 @@ module.exports = async function handler(req, res) {
     { id: 3, label: 'Execution', model: 'claude-opus-4-6',           system: S3_SYSTEM, maxTokens: 4096, userMsg: (prev, outputs) => `Original request: ${query}\n\nRoadmap:\n${JSON.stringify(outputs[1])}` },
   ];
 
-  const outputs = {};
+  const outputs     = {};
+  const stageTokens = {};
 
   try {
     for (const stage of stages) {
@@ -129,11 +130,15 @@ module.exports = async function handler(req, res) {
         metrics: { latencyMs, inputTokens, outputTokens },
         output: parsed,
       });
+
+      // accumulate per-stage metrics for savings calc
+      if (!stageTokens[stage.id]) stageTokens[stage.id] = {};
+      stageTokens[stage.id] = { inputTokens, outputTokens };
     }
 
-    const totalMs     = Date.now() - pipelineStart;
-    const totalIn     = [1,2,3].reduce((a,i) => a, 0); // calculated client-side
-    const reduction   = (() => {
+    const totalMs = Date.now() - pipelineStart;
+
+    const reduction = (() => {
       try {
         const orig = query.length;
         const comp = JSON.stringify(outputs[1]).length;
@@ -141,7 +146,49 @@ module.exports = async function handler(req, res) {
       } catch { return '0.0'; }
     })();
 
-    sendEvent(res, 'done', { totalLatencyMs: totalMs, tokenReductionRate: `${reduction}%` });
+    // ── Token savings analysis ──────────────────────────────────────────────
+    // Pricing per 1M tokens (USD)
+    const PRICE = {
+      haiku:  { in: 0.80,  out: 4.00  },
+      sonnet: { in: 3.00,  out: 15.00 },
+      opus:   { in: 15.00, out: 75.00 },
+    };
+
+    const s1 = stageTokens[1] || { inputTokens: 0, outputTokens: 0 };
+    const s2 = stageTokens[2] || { inputTokens: 0, outputTokens: 0 };
+    const s3 = stageTokens[3] || { inputTokens: 0, outputTokens: 0 };
+
+    // Actual pipeline cost (all 3 stages)
+    const pipelineCost =
+      (s1.inputTokens * PRICE.haiku.in  + s1.outputTokens * PRICE.haiku.out)  / 1e6 +
+      (s2.inputTokens * PRICE.sonnet.in + s2.outputTokens * PRICE.sonnet.out) / 1e6 +
+      (s3.inputTokens * PRICE.opus.in   + s3.outputTokens * PRICE.opus.out)   / 1e6;
+
+    // Hypothetical: raw query sent directly to Opus
+    // Input  = same raw token count as Stage 1 received (the uncompressed query)
+    // Output = estimated 1.8x more (Opus would need to plan + execute without a roadmap)
+    const directOpusInput  = s1.inputTokens;
+    const directOpusOutput = Math.round(s3.outputTokens * 1.8);
+    const directCost       = (directOpusInput * PRICE.opus.in + directOpusOutput * PRICE.opus.out) / 1e6;
+
+    const savedCost        = directCost - pipelineCost;
+    const savedOpusInput   = directOpusInput - s3.inputTokens;
+    const savedOpusOutput  = directOpusOutput - s3.outputTokens;
+
+    sendEvent(res, 'done', {
+      totalLatencyMs: totalMs,
+      tokenReductionRate: `${reduction}%`,
+      savings: {
+        directOpusInput,
+        directOpusOutput,
+        directCostUSD:   parseFloat(directCost.toFixed(6)),
+        pipelineCostUSD: parseFloat(pipelineCost.toFixed(6)),
+        savedCostUSD:    parseFloat(savedCost.toFixed(6)),
+        savedOpusInput,
+        savedOpusOutput,
+        savedPct: directCost > 0 ? ((savedCost / directCost) * 100).toFixed(1) : '0.0',
+      },
+    });
 
   } catch (err) {
     sendEvent(res, 'error', { message: err.message });

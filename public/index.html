@@ -144,6 +144,28 @@
     .error-box{padding:13px 16px;color:var(--red);background:rgba(248,81,73,.07);
       border:1px solid rgba(248,81,73,.2);border-radius:8px;font-size:13px;display:none}
 
+    /* Savings panel */
+    .savings-panel{padding:16px;border-bottom:1px solid var(--border);
+      background:linear-gradient(135deg,rgba(63,185,80,.05) 0%,rgba(88,166,255,.05) 100%)}
+    .savings-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+      color:var(--green);margin-bottom:12px}
+    .savings-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    @media(max-width:600px){.savings-grid{grid-template-columns:1fr}}
+    .savings-col{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px}
+    .savings-col-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;
+      color:var(--dimmer);margin-bottom:8px}
+    .savings-row{display:flex;justify-content:space-between;align-items:center;
+      font-size:12px;margin-bottom:4px}
+    .savings-row:last-child{margin-bottom:0}
+    .savings-key{color:var(--dim)}
+    .savings-val{font-variant-numeric:tabular-nums;font-weight:600}
+    .savings-highlight{background:var(--bg2);border:1px solid var(--green);border-radius:8px;
+      padding:12px;display:flex;align-items:center;justify-content:space-between;
+      margin-top:10px;grid-column:1/-1}
+    .savings-highlight-label{font-size:12px;color:var(--dim)}
+    .savings-highlight-val{font-size:22px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums}
+    .savings-pct{font-size:13px;color:var(--green);font-weight:600;margin-left:6px}
+
     #resultsCard{display:none}
 
     .spinner{width:8px;height:8px;border:1.5px solid currentColor;border-top-color:transparent;
@@ -253,6 +275,36 @@
       <div class="m-item"><span class="m-label">S2 입/출력</span><span class="m-val" id="rTok2" style="color:var(--dim)">—</span></div>
       <div class="m-item"><span class="m-label">S3 입/출력</span><span class="m-val" id="rTok3" style="color:var(--dim)">—</span></div>
     </div>
+
+    <!-- Savings panel -->
+    <div class="savings-panel">
+      <div class="savings-title">Opus 직접 호출 대비 절감 분석</div>
+      <div class="savings-grid">
+        <div class="savings-col">
+          <div class="savings-col-label">Opus 직접 호출 (예상)</div>
+          <div class="savings-row"><span class="savings-key">입력 토큰</span><span class="savings-val" id="svDirectIn">—</span></div>
+          <div class="savings-row"><span class="savings-key">출력 토큰 (예상)</span><span class="savings-val" id="svDirectOut">—</span></div>
+          <div class="savings-row"><span class="savings-key">예상 비용</span><span class="savings-val" id="svDirectCost">—</span></div>
+        </div>
+        <div class="savings-col">
+          <div class="savings-col-label">파이프라인 실제 (3단계 합산)</div>
+          <div class="savings-row"><span class="savings-key">Opus 입력 토큰</span><span class="savings-val" id="svPipeIn">—</span></div>
+          <div class="savings-row"><span class="savings-key">Opus 출력 토큰</span><span class="savings-val" id="svPipeOut">—</span></div>
+          <div class="savings-row"><span class="savings-key">전체 비용</span><span class="savings-val" id="svPipeCost">—</span></div>
+        </div>
+        <div class="savings-col">
+          <div class="savings-col-label">절감량</div>
+          <div class="savings-row"><span class="savings-key">입력 토큰 절감</span><span class="savings-val" style="color:var(--green)" id="svSavedIn">—</span></div>
+          <div class="savings-row"><span class="savings-key">출력 토큰 절감</span><span class="savings-val" style="color:var(--green)" id="svSavedOut">—</span></div>
+          <div class="savings-row"><span class="savings-key">비용 절감</span><span class="savings-val" style="color:var(--green)" id="svSavedCost">—</span></div>
+        </div>
+        <div class="savings-highlight">
+          <div class="savings-highlight-label">파이프라인을 통한 총 비용 절감률</div>
+          <div><span class="savings-highlight-val" id="svPct">—</span><span class="savings-pct" id="svPctLabel"></span></div>
+        </div>
+      </div>
+    </div>
+
     <div class="final-answer">
       <div class="final-label">최종 답변 (Opus)</div>
       <div class="solution-text" id="rSolution"></div>
@@ -445,6 +497,26 @@ function handleEvent(name, data) {
   if (name === 'done') {
     document.getElementById('rLatency').textContent   = data.totalLatencyMs + 'ms';
     document.getElementById('rReduction').textContent = data.tokenReductionRate;
+
+    const sv = data.savings;
+    if (sv) {
+      const fmt  = n => Number(n).toLocaleString();
+      const cost = n => '$' + Number(n).toFixed(4);
+      document.getElementById('svDirectIn').textContent   = fmt(sv.directOpusInput);
+      document.getElementById('svDirectOut').textContent  = fmt(sv.directOpusOutput);
+      document.getElementById('svDirectCost').textContent = cost(sv.directCostUSD);
+      document.getElementById('svPipeIn').textContent     = fmt(sv.directOpusInput - sv.savedOpusInput);
+      document.getElementById('svPipeOut').textContent    = fmt(sv.directOpusOutput - sv.savedOpusOutput);
+      document.getElementById('svPipeCost').textContent   = cost(sv.pipelineCostUSD);
+      const sinSign  = sv.savedOpusInput  >= 0 ? '-' : '+';
+      const soutSign = sv.savedOpusOutput >= 0 ? '-' : '+';
+      document.getElementById('svSavedIn').textContent    = sinSign  + fmt(Math.abs(sv.savedOpusInput));
+      document.getElementById('svSavedOut').textContent   = soutSign + fmt(Math.abs(sv.savedOpusOutput));
+      document.getElementById('svSavedCost').textContent  = cost(sv.savedCostUSD);
+      document.getElementById('svPct').textContent        = sv.savedPct + '%';
+      document.getElementById('svPctLabel').textContent   = sv.savedCostUSD >= 0 ? '절감' : '추가 비용';
+    }
+
     document.getElementById('resultsCard').style.display = 'block';
     document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
