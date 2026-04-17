@@ -490,35 +490,41 @@ function handleEvent(name, data) {
     document.getElementById('d' + i + 'out').textContent = JSON.stringify(data.output, null, 2);
     // Token summary
     document.getElementById('rTok' + i).textContent = `${m.inputTokens}/${m.outputTokens}`;
-    // Stage 3 final answer
-    if (i === 3) renderFinalAnswer(data.output);
+    // Stage 3 완료 즉시 결과 카드 표시 — done 이벤트를 기다리지 않음
+    if (i === 3) {
+      renderFinalAnswer(data.output);
+      document.getElementById('resultsCard').style.display = 'block';
+      document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 
   if (name === 'done') {
     document.getElementById('rLatency').textContent   = data.totalLatencyMs + 'ms';
     document.getElementById('rReduction').textContent = data.tokenReductionRate;
 
-    const sv = data.savings;
-    if (sv) {
-      const fmt  = n => Number(n).toLocaleString();
-      const cost = n => '$' + Number(n).toFixed(4);
-      document.getElementById('svDirectIn').textContent   = fmt(sv.directOpusInput);
-      document.getElementById('svDirectOut').textContent  = fmt(sv.directOpusOutput);
-      document.getElementById('svDirectCost').textContent = cost(sv.directCostUSD);
-      document.getElementById('svPipeIn').textContent     = fmt(sv.directOpusInput - sv.savedOpusInput);
-      document.getElementById('svPipeOut').textContent    = fmt(sv.directOpusOutput - sv.savedOpusOutput);
-      document.getElementById('svPipeCost').textContent   = cost(sv.pipelineCostUSD);
-      const sinSign  = sv.savedOpusInput  >= 0 ? '-' : '+';
-      const soutSign = sv.savedOpusOutput >= 0 ? '-' : '+';
-      document.getElementById('svSavedIn').textContent    = sinSign  + fmt(Math.abs(sv.savedOpusInput));
-      document.getElementById('svSavedOut').textContent   = soutSign + fmt(Math.abs(sv.savedOpusOutput));
-      document.getElementById('svSavedCost').textContent  = cost(sv.savedCostUSD);
-      document.getElementById('svPct').textContent        = sv.savedPct + '%';
-      document.getElementById('svPctLabel').textContent   = sv.savedCostUSD >= 0 ? '절감' : '추가 비용';
-    }
+    try {
+      const sv = data.savings;
+      if (sv) {
+        const fmt  = n => Number(n).toLocaleString();
+        const cost = n => '$' + Number(n).toFixed(4);
+        document.getElementById('svDirectIn').textContent   = fmt(sv.directOpusInput);
+        document.getElementById('svDirectOut').textContent  = fmt(sv.directOpusOutput);
+        document.getElementById('svDirectCost').textContent = cost(sv.directCostUSD);
+        document.getElementById('svPipeIn').textContent     = fmt(sv.directOpusInput - sv.savedOpusInput);
+        document.getElementById('svPipeOut').textContent    = fmt(sv.directOpusOutput - sv.savedOpusOutput);
+        document.getElementById('svPipeCost').textContent   = cost(sv.pipelineCostUSD);
+        const sinSign  = sv.savedOpusInput  >= 0 ? '-' : '+';
+        const soutSign = sv.savedOpusOutput >= 0 ? '-' : '+';
+        document.getElementById('svSavedIn').textContent    = sinSign  + fmt(Math.abs(sv.savedOpusInput));
+        document.getElementById('svSavedOut').textContent   = soutSign + fmt(Math.abs(sv.savedOpusOutput));
+        document.getElementById('svSavedCost').textContent  = cost(sv.savedCostUSD);
+        document.getElementById('svPct').textContent        = sv.savedPct + '%';
+        document.getElementById('svPctLabel').textContent   = sv.savedCostUSD >= 0 ? '절감' : '추가 비용';
+      }
+    } catch (_) {}
 
+    // 카드가 아직 안 보일 경우 done에서도 보장
     document.getElementById('resultsCard').style.display = 'block';
-    document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   if (name === 'error') {
