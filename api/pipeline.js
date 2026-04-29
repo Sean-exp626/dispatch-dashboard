@@ -78,7 +78,7 @@ module.exports = async function handler(req, res) {
   const stages = [
     { id: 1, label: 'Parser',    model: 'claude-haiku-4-5-20251001', system: S1_SYSTEM, maxTokens: 600,  userMsg: () => query },
     { id: 2, label: 'Architect', model: 'claude-sonnet-4-6',         system: S2_SYSTEM, maxTokens: 1200, userMsg: (prev) => `Task spec:\n${JSON.stringify(prev)}` },
-    { id: 3, label: 'Execution', model: 'claude-opus-4-6',           system: S3_SYSTEM, maxTokens: 4096, userMsg: (prev, outputs) => `Original request: ${query}\n\nRoadmap:\n${JSON.stringify(outputs[1])}` },
+    { id: 3, label: 'Execution', model: 'claude-opus-4-7',           system: S3_SYSTEM, maxTokens: 4096, userMsg: (prev, outputs) => `Original request: ${query}\n\nRoadmap:\n${JSON.stringify(outputs[1])}` },
   ];
 
   const outputs     = {};

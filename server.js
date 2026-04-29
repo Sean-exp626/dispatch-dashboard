@@ -4,6 +4,7 @@ const http = require('http');
 const os = require('os');
 const qrcode = require('qrcode-terminal');
 const { runPipeline } = require('./pipeline');
+const pipelineSSE    = require('./api/pipeline');
 
 const app = express();
 const server = http.createServer(app);
@@ -157,32 +158,8 @@ app.post('/api/clear', (req, res) => {
   res.json({ ok: true });
 });
 
-// Team Coconut — 3-stage multi-agent pipeline
-app.post('/api/pipeline', async (req, res) => {
-  const { query, apiKey } = req.body;
-  if (!query) return res.status(400).json({ error: 'query is required' });
-  const key = apiKey || process.env.ANTHROPIC_API_KEY;
-  if (!key) return res.status(400).json({ error: 'apiKey is required (or set ANTHROPIC_API_KEY env var)' });
-
-  try {
-    const result = await runPipeline(key, query);
-
-    // Log each stage into the dashboard feed
-    const ts = new Date().toISOString();
-    addLog({ timestamp: ts, hookEvent: 'Pipeline', toolName: 'Stage1-Haiku',  label: `[Pipeline] Parser — ${result.tokenReductionRate} token reduction, ${result.stages.parser.metrics.latencyMs}ms`,    level: 'agent' });
-    addLog({ timestamp: ts, hookEvent: 'Pipeline', toolName: 'Stage2-Sonnet', label: `[Pipeline] Architect — ${result.stages.architect.metrics.latencyMs}ms`, level: 'agent' });
-    addLog({ timestamp: ts, hookEvent: 'Pipeline', toolName: 'Stage3-Opus',   label: `[Pipeline] Execution — ${result.stages.execution.metrics.latencyMs}ms, ${result.totalOutputTokens} total out-tokens`, level: 'agent' });
-    addLog({ timestamp: ts, hookEvent: 'Pipeline', toolName: 'Summary',       label: `[Pipeline] Done — ${result.totalLatencyMs}ms total, ${result.totalInputTokens} in / ${result.totalOutputTokens} out tokens`, level: 'done' });
-
-    broadcast({ type: 'update', state });
-    res.json(result);
-  } catch (err) {
-    const ts = new Date().toISOString();
-    addLog({ timestamp: ts, hookEvent: 'Pipeline', toolName: 'Error', label: `[Pipeline] Error — ${err.message}`, level: 'stop' });
-    broadcast({ type: 'update', state });
-    res.status(500).json({ error: err.message });
-  }
-});
+// Team Coconut — 3-stage multi-agent pipeline (SSE streaming)
+app.post('/api/pipeline', pipelineSSE);
 
 // Health / stats
 app.get('/api/health', (req, res) => {
